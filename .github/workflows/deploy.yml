@@ -1,0 +1,79 @@
+# Shared deploy workflow for pages.lifesci.ucla.edu
+# Lives in <org>/pages-workflows and is called by every site repository.
+#
+# Org-level settings (LSC):
+#   - variable PAGES_HOSTS = "web-pages-01.lsnet.ucla.edu web-pages-02.lsnet.ucla.edu"
+#   - runner group containing the on-prem runner (label lsc-pages), limited to approved repos
+#   - this repo: Settings > Actions > General > Access: allow repos in the org to use it
+name: pages-deploy
+
+on:
+  workflow_call:
+    inputs:
+      site:
+        description: "Directory under /var/www/pages, e.g. eeb/alfaro"
+        required: true
+        type: string
+      generator:
+        description: "astro | hugo | html"
+        required: true
+        type: string
+      custom_domain:
+        description: "Canonical custom domain, e.g. alfarolab.org (empty = pages.lifesci path)"
+        required: false
+        type: string
+        default: ""
+      output_dir:
+        description: "Publish this directory instead of the generator default"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      DEPLOY_KEY:
+        description: "Per-site private deploy key issued by LSC"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Only ever runs for pushes (or manual runs) on main – never for pull requests,
+    # so code from forks cannot reach the self-hosted runner.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, lsc-pages]
+    timeout-minutes: 20
+    concurrency:
+      group: pages-${{ inputs.site }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out the site
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install deploy key
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/deploy_key"
+
+      - name: Build and deploy
+        env:
+          SITE: ${{ inputs.site }}
+          GENERATOR: ${{ inputs.generator }}
+          CUSTOM_DOMAIN: ${{ inputs.custom_domain }}
+          OUTPUT_DIR: ${{ inputs.output_dir }}
+          PAGES_HOSTS: ${{ vars.PAGES_HOSTS }}
+        run: |
+          args=(-s "$SITE" -g "$GENERATOR" -k "$RUNNER_TEMP/deploy_key" -H "$PAGES_HOSTS")
+          [ -n "$CUSTOM_DOMAIN" ] && args+=(-d "$CUSTOM_DOMAIN")
+          [ -n "$OUTPUT_DIR" ] && args+=(-o "$OUTPUT_DIR")
+          pages-build-deploy "${args[@]}" "$GITHUB_WORKSPACE"
+
+      - name: Remove deploy key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy_key"
