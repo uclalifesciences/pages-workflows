@@ -10,10 +10,10 @@ Shared GitHub Actions workflow for **pages.lifesci.ucla.edu**. Site repositories
 
 ## Organization setup (LSC, once)
 
-- Create this repo as `<org>/pages-workflows` and tag a release `v1`.
-- In this repo: **Settings → Actions → General → Access** → allow access from repositories in the organization.
-- Org variable `PAGES_HOSTS` = the web nodes, space separated.
-- Put the on-prem runner in a runner group limited to the approved site repositories.
+Works on the GitHub **Free** plan:
+- Create this repo as `uclalifesciences/pages-workflows`, **public** (no secrets in it), and tag a release `v1`.
+- Site repositories are **private**. On Free, org-level secrets and variables are not visible to private repos, so nothing is stored at org level: each site repo has its own `DEPLOY_KEY` secret, and the list of web nodes lives on the runner (`PAGES_HOSTS`, set by Ansible).
+- On Free there is only the default runner group: keep its "Allow public repositories" option **off**, so only the org's private repos can use the on-prem runner.
 - Org setting: require approval for workflows from outside collaborators/forks.
 
 ## Adding a site (LSC)

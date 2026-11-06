@@ -1,10 +1,12 @@
 # Shared deploy workflow for pages.lifesci.ucla.edu
 # Lives in <org>/pages-workflows and is called by every site repository.
 #
-# Org-level settings (LSC):
-#   - variable PAGES_HOSTS = "web-pages-01.lsnet.ucla.edu web-pages-02.lsnet.ucla.edu"
-#   - runner group containing the on-prem runner (label lsc-pages), limited to approved repos
-#   - this repo: Settings > Actions > General > Access: allow repos in the org to use it
+# Setup (works on the GitHub Free plan):
+#   - keep THIS repo public (it holds no secrets) so private site repos can call it
+#   - site repos private; each has its own DEPLOY_KEY repository secret
+#   - the web nodes to deploy to come from the runner itself (PAGES_HOSTS in the
+#     runner's .env, set by Ansible). An org variable PAGES_HOSTS, if present and
+#     visible to the repo (paid plans or public repos), takes precedence.
 name: pages-deploy
 
 on:
@@ -67,12 +69,14 @@ jobs:
           GENERATOR: ${{ inputs.generator }}
           CUSTOM_DOMAIN: ${{ inputs.custom_domain }}
           OUTPUT_DIR: ${{ inputs.output_dir }}
-          PAGES_HOSTS: ${{ vars.PAGES_HOSTS }}
+          PAGES_HOSTS_ORG: ${{ vars.PAGES_HOSTS }}
         run: |
-          args=(-s "$SITE" -g "$GENERATOR" -k "$RUNNER_TEMP/deploy_key" -H "$PAGES_HOSTS")
+          HOSTS="${PAGES_HOSTS_ORG:-${PAGES_HOSTS:-}}"
+          [ -n "$HOSTS" ] || { echo "No web nodes: set PAGES_HOSTS on the runner (Ansible pages_deploy_hosts)"; exit 1; }
+          args=(-s "$SITE" -g "$GENERATOR" -k "$RUNNER_TEMP/deploy_key" -H "$HOSTS")
           [ -n "$CUSTOM_DOMAIN" ] && args+=(-d "$CUSTOM_DOMAIN")
           [ -n "$OUTPUT_DIR" ] && args+=(-o "$OUTPUT_DIR")
-          pages-build-deploy "${args[@]}" "$GITHUB_WORKSPACE"
+          /usr/local/bin/pages-build-deploy "${args[@]}" "$GITHUB_WORKSPACE"
 
       - name: Remove deploy key
         if: always()
