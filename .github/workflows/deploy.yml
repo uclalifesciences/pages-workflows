@@ -62,10 +62,12 @@ jobs:
   deploy:
     # Only ever runs for pushes (CMS saves included) or manual/console-triggered
     # runs on main - never for pull requests, so code from forks cannot reach the
-    # self-hosted runner.
+    # self-hosted runner. Template repositories (ucla-lab-starter) carry the same
+    # caller so new sites inherit it, but are not sites themselves: skipped.
     if: >-
       github.ref == 'refs/heads/main' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.event.repository.is_template != true
     runs-on: [self-hosted, lsc-pages]
     timeout-minutes: 20
     concurrency:
